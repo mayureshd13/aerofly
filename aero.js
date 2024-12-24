@@ -1,106 +1,182 @@
-const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+function updateCanvasSize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
 
-        // Game variables
-        const player = {
-            x: 100,
-            y: canvas.height / 2,
-            width: 50,
-            height: 30,
-            color: "#ff4500",
-            speed: 5,
-        };
+updateCanvasSize();
 
-        const obstacles = [];
-        let gameRunning = true;
-        let score = 0;
+const playerPlaneImg = document.getElementById('playerPlane');
+const enemyPlaneImg = document.getElementById('enemyPlane');
+const mountainImg = document.getElementById('mountain');
 
-        function drawPlane(plane) {
-            ctx.fillStyle = plane.color;
-            ctx.fillRect(plane.x, plane.y, plane.width, plane.height);
+const gameOverPopup = document.getElementById('gameOverPopup');
+const restartButton = document.getElementById('restartButton');
+const finalScore = document.getElementById('finalScore');
+const controls = document.getElementById('controls');
+const upButton = document.getElementById('upButton');
+const downButton = document.getElementById('downButton');
+
+const mountainHeight = canvas.height * 0.15;
+
+const player = {
+    x: 100,
+    y: canvas.height / 2 - 25,
+    width: canvas.width * 0.1, // scale to width
+    height: canvas.height * 0.05, // scale to height
+    speed: 2.9
+};
+
+const enemies = [];
+let enemySpeed = 3;
+let spawnInterval = 2000;
+let score = 0;
+let gameOver = false;
+
+function spawnEnemy() {
+    const enemy = {
+        x: canvas.width,
+        y: Math.random() * (canvas.height - mountainHeight - player.height),
+        width: player.width,
+        height: player.height
+    };
+    enemies.push(enemy);
+}
+
+function detectCollision(a, b) {
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
+}
+
+function updateGame() {
+    if (gameOver) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw mountains
+    ctx.drawImage(mountainImg, 0, canvas.height - mountainHeight, canvas.width, mountainHeight);
+
+    // Draw player
+    ctx.drawImage(playerPlaneImg, player.x, player.y, player.width, player.height);
+
+    // Move and draw enemies
+    for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        enemy.x -= enemySpeed;
+        if (enemy.x + enemy.width < 0) {
+            enemies.splice(i, 1);
+            i--;
+            continue;
         }
+        ctx.drawImage(enemyPlaneImg, enemy.x, enemy.y, enemy.width, enemy.height);
 
-        function generateObstacle() {
-            const obstacle = {
-                x: canvas.width,
-                y: Math.random() * (canvas.height - 30),
-                width: 50,
-                height: 30,
-                color: "#000",
-                speed: 3,
-            };
-            obstacles.push(obstacle);
+        if (detectCollision(player, enemy)) {
+            gameOver = true;
+            showGameOverPopup();
+            return;
         }
+    }
 
-        function drawObstacles() {
-            obstacles.forEach((obstacle) => {
-                ctx.fillStyle = obstacle.color;
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-            });
-        }
+    // Detect collision with mountains
+    if (player.y + player.height > canvas.height - mountainHeight) {
+        gameOver = true;
+        showGameOverPopup();
+        return;
+    }
 
-        function moveObstacles() {
-            obstacles.forEach((obstacle) => {
-                obstacle.x -= obstacle.speed;
-            });
-            // Remove off-screen obstacles
-            obstacles.splice(0, obstacles.findIndex((obs) => obs.x + obs.width > 0));
-        }
+    // Increment score dynamically
+    score += 1;
 
-        function detectCollision() {
-            obstacles.forEach((obstacle) => {
-                if (
-                    player.x < obstacle.x + obstacle.width &&
-                    player.x + player.width > obstacle.x &&
-                    player.y < obstacle.y + obstacle.height &&
-                    player.y + player.height > obstacle.y
-                ) {
-                    gameRunning = false;
-                }
-            });
-        }
+    // Increase difficulty as score progresses
+    if (score % 1000 === 0 && score > 0) {
+        enemySpeed += 1;
+        spawnInterval = Math.max(1000, spawnInterval - 200);
+        clearInterval(spawnTimer);
+        spawnTimer = setInterval(spawnEnemy, spawnInterval);
+    }
 
-        function updateScore() {
-            score++;
-            ctx.font = "20px Arial";
-            ctx.fillStyle = "#000";
-            ctx.fillText(`Score: ${score}`, 10, 30);
-        }
+    // Draw score
+    ctx.font = '20px Arial';
+    ctx.fillStyle = 'black';
+    ctx.fillText(`Score: ${score}`, 10, 30);
 
-        function gameLoop() {
-            if (!gameRunning) {
-                ctx.font = "40px Arial";
-                ctx.fillStyle = "#000";
-                ctx.fillText("Game Over!", canvas.width / 2 - 100, canvas.height / 2);
-                ctx.fillText(`Final Score: ${score}`, canvas.width / 2 - 120, canvas.height / 2 + 50);
-                return;
-            }
+    requestAnimationFrame(updateGame);
+}
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+function showGameOverPopup() {
+    finalScore.textContent = `Score: ${score}`;
+    gameOverPopup.style.display = 'block';
+}
 
-            drawPlane(player);
-            drawObstacles();
-
-            moveObstacles();
-            detectCollision();
-
-            updateScore();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Event listeners for movement
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowUp" && player.y > 0) player.y -= player.speed;
-            if (e.key === "ArrowDown" && player.y < canvas.height - player.height) player.y += player.speed;
+function restartGame() {
+    gameOver = false;
+    score = 0;
+    enemySpeed = 3;
+    spawnInterval = 2000;
+    enemies.length = 0;
+    player.y = canvas.height / 2 - player.height / 2;
+    gameOverPopup.style.display = 'none';
+    clearInterval(spawnTimer);
+    spawnTimer = setInterval(spawnEnemy, spawnInterval);
+    updateGame();
+}
+function setupControls() {
+if (canvas.width < 768) {
+controls.style.display = 'block';
+upButton.addEventListener('click', () => {
+    if (player.y > 0) player.y -= player.speed; // Slight move up
+});
+downButton.addEventListener('click', () => {
+    if (player.y < canvas.height - mountainHeight - player.height) player.y += player.speed; // Slight move down
+});
+} else {
+controls.style.display = 'none';
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' && player.y > 0) {
+        player.y -= player.speed; // Slight move up
+    } else if (e.key === 'ArrowDown' && player.y < canvas.height - mountainHeight - player.height) {
+        player.y += player.speed; // Slight move down
+    }
+});
+}
+}
+function setupControls() {
+    if (canvas.width < 768) {
+        controls.style.display = 'block';
+        upButton.addEventListener('click', () => {
+            if (player.y > 0) player.y -= player.speed;
         });
+        downButton.addEventListener('click', () => {
+            if (player.y < canvas.height - mountainHeight - player.height) player.y += player.speed;
+        });
+    } else {
+        controls.style.display = 'none';
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' && player.y > 0) {
+                player.y -= player.speed;
+            } else if (e.key === 'ArrowDown' && player.y < canvas.height - mountainHeight - player.height) {
+                player.y += player.speed;
+            }
+        });
+    }
+    
+}
 
-        // Generate obstacles at intervals
-        setInterval(() => {
-            if (gameRunning) generateObstacle();
-        }, 2000);
+restartButton.addEventListener('click', restartGame);
 
-        // Start game loop
-        gameLoop();
+window.addEventListener('resize', () => {
+    updateCanvasSize();
+    setupControls();
+});
+
+// Spawn enemies at intervals
+let spawnTimer = setInterval(spawnEnemy, spawnInterval);
+
+setupControls();
+updateGame();
